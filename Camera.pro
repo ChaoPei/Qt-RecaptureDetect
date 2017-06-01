@@ -17,6 +17,7 @@ SOURCES += main.cpp\
 
 HEADERS  += camerawidget.h
 
+
 FORMS += camerawidget.ui
 
 # add Opencv include dir
@@ -27,11 +28,20 @@ INCLUDEPATH += "D:\opencv\build\include"\
 # add Matlab include dir
 INCLUDEPATH += "D:\Program Files\MATLAB\R2014a\extern\include"
 
+# add glog include dir
+INCLUDEPATH += $$PWD\glog
+
+# add recapture include dir
+INCLUDEPATH += $$PWD\recapture
+
 # add Opencv libs dir
 LIBS += -L"D:\opencv\build\x64\vc12\lib"
 
 # add Matlab libs dir
 LIBS += -L"D:\Program Files\MATLAB\R2014a\extern\lib\win64\microsoft"
+
+# add User self-define libs
+LIBS += -L$$PWD\libs
 
 # add Opencv libs
 LIBS += -lopencv_calib3d2413d
@@ -60,11 +70,8 @@ LIBS += -llibmex
 LIBS += -lmclmcr
 LIBS += -lmclmcrrt
 
-# add User self-define libs
-
-LIBS += -L$$PWD
-
-LIBS += -lRemake
+# add third libs
+LIBS += -lrecapture
 
 
 

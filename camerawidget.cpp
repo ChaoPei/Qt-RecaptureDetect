@@ -7,10 +7,9 @@ CameraWidget::CameraWidget(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    cam = NULL;
     timer = new QTimer(this);
     image = new QImage();
-    // imgName = "11.jpg";    // 测试使用
+    imgName = "lena.jpg";    // 测试使用
     registProcess = new QProcess(this);
     recognizeProcess = new QProcess(this);
 
@@ -22,7 +21,6 @@ CameraWidget::CameraWidget(QWidget *parent) :
     connect(ui->button_closeCam, SIGNAL(clicked()), this, SLOT(closeCamera()));
     connect(ui->button_regist, SIGNAL(clicked()), this, SLOT(regist()));
     connect(ui->button_detect, SIGNAL(clicked()), this, SLOT(detect()));
-
 }
 
 
@@ -30,10 +28,38 @@ CameraWidget::CameraWidget(QWidget *parent) :
 void CameraWidget::openCamera()
 {
     // 获取摄像头视频
-    cam = cvCreateCameraCapture(0);
+    if(capture.isOpened())
+    {
+        LOG(WARNING) << "Camera is already opened and is will released!" << endl;
+        capture.release();
+    }
+    //capture.open("http://192.168.23.2:8888/video?dummy=param.mjpg");
+    capture.open(0);
+
+    if(!capture.isOpened())
+    {
+        LOG(ERROR) << "Open camera failed!" << endl;
+        return;
+    }
+
+    LOG(INFO) << "Open camera successfully!\n";
+    // 初始化Mat的大小
+    frame = Mat::zeros(capture.get(CV_CAP_PROP_FRAME_HEIGHT),
+                          capture.get(CV_CAP_PROP_FRAME_WIDTH),
+                          CV_8UC3);
+
+    // camera params
+    LOG(INFO) << "Camera size : "
+              << capture.get(CV_CAP_PROP_FRAME_HEIGHT)
+              << " * "
+              << capture.get(CV_CAP_PROP_FRAME_WIDTH)
+              << endl;
+    LOG(INFO) << "Camera frame rate: "
+              << capture.get(CV_CAP_PROP_FPS)
+              << endl;
 
     // 开始计时，超时则发出timeout()信号
-    timer->start(3);
+    timer->start(30);
 }
 
 
@@ -41,29 +67,45 @@ void CameraWidget::openCamera()
 void CameraWidget::readFrame()
 {
     // 从摄像头中获取一帧图像
-    frame = cvQueryFrame(cam);
-    // 将抓取到的帧，转换为QImage格式。QImage::Format_RGB888不同的摄像头用不同的格式。
-    QImage qImage = QImage((const uchar*)frame->imageData,
-                           frame->width, frame->height,
-                           QImage::Format_RGB888).rgbSwapped();
-    // 将图片显示到label上
-    ui->label_cam->setPixmap(QPixmap::fromImage(qImage));
+    capture >> frame;
+
+    if(frame.data)
+    {
+        // 将抓取到的帧，转换为QImage格式。QImage::Format_RGB888不同的摄像头用不同的格式。
+        QImage qImage = QImage((const uchar*)frame.data,
+                               frame.cols, frame.rows,
+                               QImage::Format_RGB888).rgbSwapped();
+        // 将图片显示到label上
+        ui->label_cam->setPixmap(QPixmap::fromImage(qImage));
+    }
+    else
+    {
+        LOG(WARNING) << "Read camera data failed!" << endl;
+    }
 }
+
 
 // 拍照
 void CameraWidget::takingPicture()
 {
-    frame = cvQueryFrame(cam);
+    if(!capture.isOpened())
+    {
+        LOG(WARNING) << "Camera is not opened failed!";
+        return;
+    }
+
+    capture >> frame;
+    Mat dstImage = frame.clone();
 
     // 保存图片
-    cv::Mat camMat = cv::Mat(frame);
-    cv::Mat dstImage = camMat.clone();
     imgName = getPicNameString();
     cv::imwrite("images\\" + imgName.toStdString(), dstImage);
+    LOG(INFO) << "Take picture successfully. Save image in: "
+              << "images\\" + imgName.toStdString();
 
     // 将抓取到的帧，转换为QImage格式。QImage::Format_RGB888不同的摄像头用不同的格式。
-    QImage qImage = QImage((const uchar*)frame->imageData,
-                           frame->width, frame->height,
+    QImage qImage = QImage((const uchar*)frame.data,
+                           frame.cols, frame.rows,
                            QImage::Format_RGB888).rgbSwapped();
     // 将图片显示到label上
     ui->label_pic->setPixmap(QPixmap::fromImage(qImage));
@@ -73,15 +115,16 @@ void CameraWidget::takingPicture()
 // 关闭摄像头
 void CameraWidget::closeCamera()
 {
-    timer->stop();         // 停止读取数据。
-
-    cvReleaseCapture(&cam);//释放内存；
+    timer->stop();         // 停止读取数据
+    LOG(INFO) << "Camera is released"
+              << endl;
+    capture.release();    // 释放摄像头
 }
 
 
 void CameraWidget::regist()
 {
-    qDebug() << "Click register button";
+    LOG(INFO) << "Click register button";
     QString program = "Register.exe";
     QStringList arguments;
     arguments << "-0" << "images\\" + imgName;
@@ -93,8 +136,11 @@ void CameraWidget::regist()
     // 执行注册程序
     registProcess->start(program, arguments);
     registProcess->waitForStarted();
-    qDebug() << QString::fromLocal8Bit(registProcess->readAll());
+    LOG(INFO) << "Register picture: "
+              << "images\\" + imgName.toStdString();
+    LOG(INFO) << QString::fromLocal8Bit(registProcess->readAll()).toStdString();
 }
+
 
 void CameraWidget::readRegisterResult()
 {
@@ -115,7 +161,9 @@ void CameraWidget::readRegisterResult()
         QMessageBox::information(NULL,
                                  "注册提示",
                                  "恭喜你，注册成功 ! ID: " + id);
-        //imgName = "11.jpg";
+        LOG(INFO) << "Register successfully and ID: "
+                  << id.toStdString()
+                  << endl;
     }
     else if(result.indexOf(failRegExp) >= 0)
     {
@@ -126,32 +174,35 @@ void CameraWidget::readRegisterResult()
         registProcess->close();
 
         // imgName = "1.jpg";
-        qDebug() << "Register.exe was killed and exited.";
+        LOG(WARNING) << "Register failed, the register program was killed and exited.";
 
     }
     else
     {
-        qDebug() << "Register stdout : " << result;
+        LOG(WARNING) << "Register stdout : " << result.toStdString();
     }
 
-    qDebug() << "Show messagebox ok !";
+    LOG(INFO) << "Show messagebox ok !";
 }
+
 
 void CameraWidget::detect()
 {
-    qDebug() << "Click detect button";
+    LOG(INFO) << "Click detect button";
 
-    if (!RemakeInitialize())
+    if (!recaptureInitialize())
     {
-        std::cout << "Could not initialize Matlab lib!" << std::endl;
+        LOG(ERROR) << "recaptureInitialize called failed!"
+                   << endl;
         return;
     }
 
     // Debug 目录
     // qDebug() << "app path : " <<  QCoreApplication::applicationDirPath();
     // build 目录
-    qDebug() << "current path: " << QDir::currentPath();
+    LOG(INFO) << "current path: " << QDir::currentPath().toStdString();
 
+    // 调用Matlab编译出的翻拍检测动态库
     const QString NATURE_MAT = "testna5190.mat";
     const QString RECAPTURE_MAT = "testre5190.mat";
     QString imagePath = QDir::currentPath() + "/images/" + imgName;
@@ -164,14 +215,14 @@ void CameraWidget::detect()
     mwArray RePath(recapture_mat.toStdString().c_str());
     mwArray Result(result);
 
-    qDebug() << "Start detect recapture for : " << imgName;
+    LOG(INFO) << "Start detect recapture for : " << imgName.toStdString();
     main_FeatureClassifier(1, Result, ImagePath, NaPath, RePath);
     std::stringstream oss;
     oss << Result;
     if(oss.str() == "1")
     {
-        qDebug() << "It's natural picture...";
-        qDebug() << "Start face recognize...";
+        LOG(INFO) << "It's natural picture and will start face recognize."
+                  << endl;
         QString program = "Register.exe";
         QStringList arguments;
         arguments << "-1" << "images\\" + imgName;
@@ -183,11 +234,12 @@ void CameraWidget::detect()
         // 执行注册程序
         recognizeProcess->start(program, arguments);
         recognizeProcess->waitForStarted();
-        qDebug() << QString::fromLocal8Bit(recognizeProcess->readAll());
+        LOG(INFO) << QString::fromLocal8Bit(recognizeProcess->readAll()).toStdString();
     }
     else
     {
-        qDebug() << "It's recapture pciture...";
+        LOG(INFO) << "It's recapture pciture."
+                  << endl;
         QMessageBox::warning(NULL,
                              "识别信息",
                              "该图片是翻拍 !");
@@ -213,7 +265,9 @@ void CameraWidget::readRecognizeResult()
         QMessageBox::information(NULL,
                                  "识别信息",
                                  "识别成功，ID: " + id);
-        //imgName = "11.jpg";
+        LOG(INFO) << "Face recognize successfully, ID: "
+                  << id.toStdString()
+                  << endl;
     }
     else if(result.indexOf(failRegExp) >= 0)
     {
@@ -222,14 +276,13 @@ void CameraWidget::readRecognizeResult()
                              "识别错误，未检测到人脸 !");
         // 注册失败需要关闭程序
         registProcess->close();
-        //imgName = "1.jpg";
-        qDebug() << "Register.exe was killed and exited.";
+        LOG(WARNING) << "Face are not detected, the Register.exe was killed and exited.";
     }
     else
     {
-        qDebug() << "Recognize stdout : " << result;
+        LOG(WARNING) << "Recognize stdout : " << result.toStdString();
     }
-    qDebug() << "Show messagebox ok !";
+    LOG(INFO) << "Show messagebox ok !";
 }
 
 
@@ -239,6 +292,7 @@ QString CameraWidget::getPicNameString()
     QString name = time.toString("yyyy-MM-dd_hh-mm-ss") + ".jpg";
     return name;
 }
+
 
 CameraWidget::~CameraWidget()
 {

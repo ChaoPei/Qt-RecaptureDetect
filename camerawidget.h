@@ -1,6 +1,11 @@
 #ifndef CAMERAWIDGET_H
 #define CAMERAWIDGET_H
 
+// 防止和windows的日志库冲突
+#define GLOG_NO_ABBREVIATED_SEVERITIES
+#define GOOGLE_GLOG_DLL_DECL
+#pragma comment(lib, "libglog_static.lib")
+
 #include <QWidget>
 #include <QTimer>
 #include <QImage>
@@ -18,11 +23,16 @@
 #include <iostream>
 #include <string>
 
-#include <highgui.h>  //包含opencv库头文件
-#include <cv.h>
+//#include <cv.h>
+//#include <highgui.h>  //包含opencv库头文件
+#include <opencv2\core\core.hpp>
+#include <opencv2\highgui\highgui.hpp>
 
-#include "Remake.h"
+#include "recapture.h"
+#include "glog/logging.h"
 
+using namespace std;
+using namespace cv;
 
 namespace Ui {
 class CameraWidget;
@@ -50,8 +60,8 @@ private:
     Ui::CameraWidget *ui;
     QTimer *timer;
     QImage *image;
-    CvCapture *cam;  // 视频获取
-    IplImage *frame; // 申请空间，用于存放每一帧图像
+    cv::VideoCapture capture;   // 视频获取
+    cv::Mat frame;              // 申请空间，用于存放每一帧图像
     QString imgName; // 保存抓拍后的图像名称
     QProcess *registProcess;
     QProcess *recognizeProcess;
