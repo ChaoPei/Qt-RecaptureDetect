@@ -22,14 +22,16 @@
 #include <sstream>
 #include <iostream>
 #include <string>
+#include <thread>
+#include <atomic>
 
-//#include <cv.h>
-//#include <highgui.h>  //包含opencv库头文件
 #include <opencv2\core\core.hpp>
 #include <opencv2\highgui\highgui.hpp>
 
 #include "recapture.h"
 #include "glog/logging.h"
+
+//#include "reco_thread.h"
 
 using namespace std;
 using namespace cv;
@@ -60,14 +62,18 @@ private:
     Ui::CameraWidget *ui;
     QTimer *timer;
     QImage *image;
-    cv::VideoCapture capture;   // 视频获取
-    cv::Mat frame;              // 申请空间，用于存放每一帧图像
-    QString imgName; // 保存抓拍后的图像名称
+    cv::VideoCapture capture;       // 视频获取
+    cv::Mat frame;                  // 申请空间，用于存放每一帧图像
+    QString imageName;              // 保存抓拍后的图像名称
     QProcess *registProcess;
     QProcess *recognizeProcess;
+    atomic_bool isRecapture;        // 原子变量，图片是否是翻拍
+    atomic_bool subThreadStopped;   // 原子变量，翻拍检测子线程是否完成，完成则停止
 
     // 获取一个用于图片命名的字符串，字符串由当前时间生成
     QString getPicNameString();
+    void detectForRecapture();
+
 };
 
 #endif // CAMERAWIDGET_H

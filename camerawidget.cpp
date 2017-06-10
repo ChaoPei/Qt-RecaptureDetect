@@ -9,10 +9,11 @@ CameraWidget::CameraWidget(QWidget *parent) :
 
     timer = new QTimer(this);
     image = new QImage();
-    imgName = "lena.jpg";    // 测试使用
+    imageName = "lena.jpg";    // 测试使用
     registProcess = new QProcess(this);
     recognizeProcess = new QProcess(this);
-
+    isRecapture = false;
+    subThreadStopped = false;
 
     // 信号槽
     connect(timer, SIGNAL(timeout()), this, SLOT(readFrame()));  // 时间到，读取摄像头信息
@@ -98,10 +99,10 @@ void CameraWidget::takingPicture()
     Mat dstImage = frame.clone();
 
     // 保存图片
-    imgName = getPicNameString();
-    cv::imwrite("images\\" + imgName.toStdString(), dstImage);
+    imageName = getPicNameString();
+    cv::imwrite("images\\" + imageName.toStdString(), dstImage);
     LOG(INFO) << "Take picture successfully. Save image in: "
-              << "images\\" + imgName.toStdString();
+              << "images\\" + imageName.toStdString();
 
     // 将抓取到的帧，转换为QImage格式。QImage::Format_RGB888不同的摄像头用不同的格式。
     QImage qImage = QImage((const uchar*)frame.data,
@@ -122,12 +123,13 @@ void CameraWidget::closeCamera()
 }
 
 
+// 注册
 void CameraWidget::regist()
 {
     LOG(INFO) << "Click register button";
     QString program = "Register.exe";
     QStringList arguments;
-    arguments << "-0" << "images\\" + imgName;
+    arguments << "-0" << "images\\" + imageName;
     connect(registProcess,
             SIGNAL(readyRead()),
             this,
@@ -137,11 +139,12 @@ void CameraWidget::regist()
     registProcess->start(program, arguments);
     registProcess->waitForStarted();
     LOG(INFO) << "Register picture: "
-              << "images\\" + imgName.toStdString();
+              << "images\\" + imageName.toStdString();
     LOG(INFO) << QString::fromLocal8Bit(registProcess->readAll()).toStdString();
 }
 
 
+// 获取注册程序结果
 void CameraWidget::readRegisterResult()
 {
     QProcess *pProces = (QProcess *)sender();
@@ -173,7 +176,7 @@ void CameraWidget::readRegisterResult()
         // 注册失败需要关闭程序
         registProcess->close();
 
-        // imgName = "1.jpg";
+        // imageName = "1.jpg";
         LOG(WARNING) << "Register failed, the register program was killed and exited.";
 
     }
@@ -186,9 +189,12 @@ void CameraWidget::readRegisterResult()
 }
 
 
-void CameraWidget::detect()
+// 翻拍检测
+void CameraWidget::detectForRecapture()
 {
-    LOG(INFO) << "Click detect button";
+    LOG(INFO) << "Start detecting recapture for image :"
+              << imageName.toStdString()
+              << endl;
 
     if (!recaptureInitialize())
     {
@@ -205,7 +211,7 @@ void CameraWidget::detect()
     // 调用Matlab编译出的翻拍检测动态库
     const QString NATURE_MAT = "testna5190.mat";
     const QString RECAPTURE_MAT = "testre5190.mat";
-    QString imagePath = QDir::currentPath() + "/images/" + imgName;
+    QString imagePath = QDir::currentPath() + "/images/" + imageName;
     QString nature_mat = QDir::currentPath() + "/mats/" + NATURE_MAT;
     QString recapture_mat = QDir::currentPath() + "/mats/" + RECAPTURE_MAT;
     int result = 0;
@@ -215,17 +221,54 @@ void CameraWidget::detect()
     mwArray RePath(recapture_mat.toStdString().c_str());
     mwArray Result(result);
 
-    LOG(INFO) << "Start detect recapture for : " << imgName.toStdString();
+    LOG(INFO) << "Start detect recapture for : " << imageName.toStdString();
     main_FeatureClassifier(1, Result, ImagePath, NaPath, RePath);
     std::stringstream oss;
     oss << Result;
     if(oss.str() == "1")
     {
-        LOG(INFO) << "It's natural picture and will start face recognize."
+        LOG(INFO) << "It's a natural picture."
                   << endl;
+        isRecapture = true;
+    }
+    else
+    {
+        LOG(INFO) << "It's a recapture picture."
+                  << endl;
+        isRecapture = false;
+    }
+    subThreadStopped = true;
+}
+
+
+// 识别
+void CameraWidget::detect()
+{
+    LOG(INFO) << "Click detect button";
+
+    // 启动子线程来调用翻拍检测
+    std::thread recoThread(std::bind(&CameraWidget::detectForRecapture, this));
+    // 主线程中更新UI
+    while(!subThreadStopped)
+    {
+        qApp->processEvents();
+        this->show();
+    }
+    // 等待子线程完成
+    recoThread.join();
+
+    if(isRecapture)
+    {
+        // 如果是翻拍的
+        QMessageBox::warning(NULL,
+                             "识别信息",
+                             "该图片是翻拍 !");
+    }
+    else
+    {
         QString program = "Register.exe";
         QStringList arguments;
-        arguments << "-1" << "images\\" + imgName;
+        arguments << "-1" << "images\\" + imageName;
         connect(recognizeProcess,
                 SIGNAL(readyRead()),
                 this,
@@ -236,14 +279,63 @@ void CameraWidget::detect()
         recognizeProcess->waitForStarted();
         LOG(INFO) << QString::fromLocal8Bit(recognizeProcess->readAll()).toStdString();
     }
-    else
-    {
-        LOG(INFO) << "It's recapture pciture."
-                  << endl;
-        QMessageBox::warning(NULL,
-                             "识别信息",
-                             "该图片是翻拍 !");
-    }
+
+
+//    if (!recaptureInitialize())
+//    {
+//        LOG(ERROR) << "recaptureInitialize called failed!"
+//                   << endl;
+//        return;
+//    }
+
+//    // Debug 目录
+//    // qDebug() << "app path : " <<  QCoreApplication::applicationDirPath();
+//    // build 目录
+//    LOG(INFO) << "current path: " << QDir::currentPath().toStdString();
+
+//    // 调用Matlab编译出的翻拍检测动态库
+//    const QString NATURE_MAT = "testna5190.mat";
+//    const QString RECAPTURE_MAT = "testre5190.mat";
+//    QString imagePath = QDir::currentPath() + "/images/" + imageName;
+//    QString nature_mat = QDir::currentPath() + "/mats/" + NATURE_MAT;
+//    QString recapture_mat = QDir::currentPath() + "/mats/" + RECAPTURE_MAT;
+//    int result = 0;
+
+//    mwArray ImagePath(imagePath.toStdString().c_str());
+//    mwArray NaPath(nature_mat.toStdString().c_str());
+//    mwArray RePath(recapture_mat.toStdString().c_str());
+//    mwArray Result(result);
+
+//    LOG(INFO) << "Start detect recapture for : " << imageName.toStdString();
+//    main_FeatureClassifier(1, Result, ImagePath, NaPath, RePath);
+//    std::stringstream oss;
+//    oss << Result;
+
+//    if(oss.str() == "1")
+//    {
+//        LOG(INFO) << "It's natural picture and will start face recognize."
+//                  << endl;
+//        QString program = "Register.exe";
+//        QStringList arguments;
+//        arguments << "-1" << "images\\" + imageName;
+//        connect(recognizeProcess,
+//                SIGNAL(readyRead()),
+//                this,
+//                SLOT(readRecognizeResult()));
+
+//        // 执行注册程序
+//        recognizeProcess->start(program, arguments);
+//        recognizeProcess->waitForStarted();
+//        LOG(INFO) << QString::fromLocal8Bit(recognizeProcess->readAll()).toStdString();
+//    }
+//    else
+//    {
+//        LOG(INFO) << "It's recapture pciture."
+//                  << endl;
+//        QMessageBox::warning(NULL,
+//                             "识别信息",
+//                             "该图片是翻拍 !");
+//    }
 }
 
 
