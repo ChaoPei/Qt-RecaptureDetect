@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1274</width>
-    <height>650</height>
+    <width>1310</width>
+    <height>618</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,8 +18,8 @@
     <rect>
      <x>10</x>
      <y>10</y>
-     <width>612</width>
-     <height>512</height>
+     <width>640</width>
+     <height>480</height>
     </rect>
    </property>
    <property name="lineWidth">
@@ -35,10 +35,10 @@
   <widget class="QLabel" name="label_pic">
    <property name="geometry">
     <rect>
-     <x>652</x>
+     <x>660</x>
      <y>10</y>
-     <width>612</width>
-     <height>512</height>
+     <width>640</width>
+     <height>480</height>
     </rect>
    </property>
    <property name="text">
@@ -51,8 +51,8 @@
   <widget class="QPushButton" name="button_openCam">
    <property name="geometry">
     <rect>
-     <x>350</x>
-     <y>590</y>
+     <x>370</x>
+     <y>540</y>
      <width>91</width>
      <height>41</height>
     </rect>
@@ -64,8 +64,8 @@
   <widget class="QPushButton" name="button_takPic">
    <property name="geometry">
     <rect>
-     <x>590</x>
-     <y>590</y>
+     <x>610</x>
+     <y>540</y>
      <width>91</width>
      <height>41</height>
     </rect>
@@ -77,8 +77,8 @@
   <widget class="QPushButton" name="button_closeCam">
    <property name="geometry">
     <rect>
-     <x>470</x>
-     <y>590</y>
+     <x>490</x>
+     <y>540</y>
      <width>91</width>
      <height>41</height>
     </rect>
@@ -90,8 +90,8 @@
   <widget class="QPushButton" name="button_regist">
    <property name="geometry">
     <rect>
-     <x>710</x>
-     <y>590</y>
+     <x>730</x>
+     <y>540</y>
      <width>91</width>
      <height>41</height>
     </rect>
@@ -103,8 +103,8 @@
   <widget class="QPushButton" name="button_detect">
    <property name="geometry">
     <rect>
-     <x>830</x>
-     <y>590</y>
+     <x>850</x>
+     <y>540</y>
      <width>91</width>
      <height>41</height>
     </rect>

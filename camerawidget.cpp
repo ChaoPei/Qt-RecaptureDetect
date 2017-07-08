@@ -34,8 +34,12 @@ void CameraWidget::openCamera()
         LOG(WARNING) << "Camera is already opened and is will released!" << endl;
         capture.release();
     }
-    //capture.open("http://192.168.23.2:8888/video?dummy=param.mjpg");
-    capture.open(0);
+
+    // IP摄像头
+    capture.open("http://192.168.23.2:8888/video?dummy=param.mjpg");
+
+    // 本地摄像头
+    // capture.open(0);
 
     if(!capture.isOpened())
     {
@@ -51,9 +55,9 @@ void CameraWidget::openCamera()
 
     // camera params
     LOG(INFO) << "Camera size : "
-              << capture.get(CV_CAP_PROP_FRAME_HEIGHT)
-              << " * "
               << capture.get(CV_CAP_PROP_FRAME_WIDTH)
+              << " * "
+              << capture.get(CV_CAP_PROP_FRAME_HEIGHT)
               << endl;
     LOG(INFO) << "Camera frame rate: "
               << capture.get(CV_CAP_PROP_FPS)
@@ -72,9 +76,19 @@ void CameraWidget::readFrame()
 
     if(frame.data)
     {
+        Mat showImage;
+        cv::resize(frame, showImage, cv::Size(
+                       ui->label_cam->width(), ui->label_cam->height()),
+                   (0,0), (0, 0), cv::INTER_LINEAR);
+
+        LOG(INFO) << "Camera size: "
+                  << showImage.cols << " "
+                  << showImage.rows
+                  << endl;
+
         // 将抓取到的帧，转换为QImage格式。QImage::Format_RGB888不同的摄像头用不同的格式。
-        QImage qImage = QImage((const uchar*)frame.data,
-                               frame.cols, frame.rows,
+        QImage qImage = QImage((const uchar*)showImage.data,
+                               showImage.cols, showImage.rows,
                                QImage::Format_RGB888).rgbSwapped();
         // 将图片显示到label上
         ui->label_cam->setPixmap(QPixmap::fromImage(qImage));
@@ -104,9 +118,15 @@ void CameraWidget::takingPicture()
     LOG(INFO) << "Take picture successfully. Save image in: "
               << "images\\" + imageName.toStdString();
 
+    Mat showImage;
+    cv::resize(frame, showImage, cv::Size(
+                   ui->label_pic->width(), ui->label_pic->height()),
+               (0,0), (0, 0), cv::INTER_LINEAR);
+
+
     // 将抓取到的帧，转换为QImage格式。QImage::Format_RGB888不同的摄像头用不同的格式。
-    QImage qImage = QImage((const uchar*)frame.data,
-                           frame.cols, frame.rows,
+    QImage qImage = QImage((const uchar*)showImage.data,
+                           showImage.cols, showImage.rows,
                            QImage::Format_RGB888).rgbSwapped();
     // 将图片显示到label上
     ui->label_pic->setPixmap(QPixmap::fromImage(qImage));
